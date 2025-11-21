@@ -2,7 +2,7 @@
 <html>
 <head>
   <meta charset="UTF-8">
-  <title> Digital Electronics Attendance </title>
+  <title>Mechatronics Lab Attendance</title>
   <style>
     body { font-family: Arial, sans-serif; padding: 40px; max-width: 500px; margin: auto; }
     h2 { margin-bottom: 10px; }
@@ -10,66 +10,42 @@
     button { background: #2e7d32; color: white; border: none; cursor: pointer; }
     button:disabled { background: #888; cursor: not-allowed; }
     #status { margin-top: 10px; font-size: 0.95rem; }
-    .error { color: red; font-size: 0.85rem; }
   </style>
 </head>
+
 <body>
 
-  <h2> Digital Electronics Lab Attendance</h2>
-  <p>Please fill your details and allow location access.</p>
+<h2>Mechatronics Lab Attendance</h2>
+<p>Please fill your details and allow location access.</p>
 
-  <label>Your Name</label>
-  <input type="text" id="name" placeholder="First and last name" oninput="validateName()">
-  <div id="nameError" class="error"></div>
+<label>Your Name</label>
+<input type="text" id="name" placeholder="First and last name">
 
-  <label>Student ID</label>
-  <input type="text" id="id" placeholder="Matrikelnummer or ID" oninput="validateID()">
-  <div id="idError" class="error"></div>
+<label>Student ID</label>
+<input type="text" id="id" placeholder="Matrikelnummer or ID">
 
-  <button id="btn" onclick="getLocation()">Submit Attendance</button>
+<button id="btn" onclick="getLocation()">Submit Attendance</button>
 
-  <p id="status"></p>
+<p id="status"></p>
 
 <script>
-  const LAB_LAT = 52.47658458055089;
-  const LAB_LON = 13.45780966572938;
+  // Lab location
+  const LAB_LAT = 52.476383;
+  const LAB_LON = 13.457703;
+
+  // 80-meter allowed zone
   const ALLOWED_RADIUS = 80;
 
-  // ---------- VALIDATION ----------
-  function validateName() {
-    const name = document.getElementById("name").value;
-    const regex = /^[A-Za-z ]+$/;
-
-    if (!regex.test(name)) {
-      document.getElementById("nameError").innerText = "Name must contain only alphabets.";
-      return false;
-    }
-    document.getElementById("nameError").innerText = "";
-    return true;
-  }
-
-  function validateID() {
-    const id = document.getElementById("id").value;
-    const regex = /^[0-9]+$/;
-
-    if (!regex.test(id)) {
-      document.getElementById("idError").innerText = "Matrikelnummer must contain only numbers.";
-      return false;
-    }
-    document.getElementById("idError").innerText = "";
-    return true;
-  }
-
-  // Haversine distance formula
+  // Haversine formula
   function getDistance(lat1, lon1, lat2, lon2) {
     const R = 6371000;
     const toRad = d => d * Math.PI / 180;
     const dLat = toRad(lat2 - lat1);
-    const dLon = toRad(lat2 - lon1);
+    const dLon = toRad(lon2 - lon1);
     const a =
-      Math.sin(dLat/2) ** 2 +
+      Math.sin(dLat / 2) ** 2 +
       Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
-      Math.sin(dLon/2) ** 2;
+      Math.sin(dLon / 2) ** 2;
     return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   }
 
@@ -78,88 +54,69 @@
   }
 
   function getLocation() {
-    const nameValid = validateName();
-    const idValid = validateID();
-
-    if (!nameValid || !idValid) {
-      setStatus("Please correct the errors before submitting.");
-      return;
-    }
-
     const name = document.getElementById("name").value.trim();
     const id = document.getElementById("id").value.trim();
 
-    if (!navigator.geolocation) {
-      setStatus("Geolocation is not supported on this device.");
+    if (!name || !id) {
+      setStatus("Please enter both name and student ID.");
       return;
     }
 
     document.getElementById("btn").disabled = true;
-    setStatus("Requesting location, please wait...");
+    setStatus("Requesting GPS location...");
 
     navigator.geolocation.getCurrentPosition(success, error, {
       enableHighAccuracy: true,
-      timeout: 15000,
+      timeout: 20000,
       maximumAge: 0
     });
   }
 
-function success(position) {
-  const lat = position.coords.latitude;
-  const lon = position.coords.longitude;
-  const distance = getDistance(lat, lon, LAB_LAT, LAB_LON);
+  function success(pos) {
+    const lat = pos.coords.latitude;
+    const lon = pos.coords.longitude;
+    const accuracy = pos.coords.accuracy || 0;
+    const speed = pos.coords.speed || 0;
 
-  if (distance <= ALLOWED_RADIUS) {
-    setStatus("Inside lab area (" + distance.toFixed(1) + " m). Marking your attendance as PRESENT...  Thank you!");
-    sendToServer(lat, lon, distance);
-  } else {
-    setStatus("Attendance denied. You are outside the lab radius (" +
-              distance.toFixed(1) + " m). Marking your attendance as ABSENT.");
-    sendToServer(lat, lon, distance);   // <--- NEW: Still send to server
+    const distance = getDistance(lat, lon, LAB_LAT, LAB_LON);
+
+    setStatus("Location received. Sending data...");
+
+    sendToServer(lat, lon, distance, accuracy, speed);
   }
-}
-
 
   function error(err) {
-    setStatus("Could not get location: " + err.message);
+    setStatus("Location error: " + err.message);
     document.getElementById("btn").disabled = false;
   }
 
-function sendToServer(lat, lon, distance) {
-  const name = encodeURIComponent(document.getElementById("name").value.trim());
-  const id = encodeURIComponent(document.getElementById("id").value.trim());
+  function sendToServer(lat, lon, distance, accuracy, speed) {
+    const name = encodeURIComponent(document.getElementById("name").value.trim());
+    const id = encodeURIComponent(document.getElementById("id").value.trim());
 
-  const url =
-    "https://script.google.com/macros/s/AKfycbxS5r6fIV7s6meJt412xL0nvDfNUzZl6C7_du3ds3cW--9LUF2yOGBCNkH030RIFo_Xxg/exec" +
-    "?key=" + encodeURIComponent("P@sswd1234") +
-    "&name=" + name +
-    "&id=" + id +
-    "&lat=" + lat +
-    "&lon=" + lon +
-    "&distance=" + distance;
+    const url =
+      "https://script.google.com/macros/s/AKfycbz9qsbOfaKfdeV9n5KvuFiYtPYzMrdzBu_m5Nw-mpfuRbDynptcyF5x_TVs47dRJB3s/exec" +
+      "?key=" + encodeURIComponent("P@sswd1234") +
+      "&name=" + name +
+      "&id=" + id +
+      "&lat=" + lat +
+      "&lon=" + lon +
+      "&distance=" + distance +
+      "&accuracy=" + accuracy +
+      "&speed=" + speed;
 
-  fetch(url)
-    .then(r => r.text())
-    .then(t => {
-      // KEEP ORIGINAL MESSAGE — DO NOT OVERWRITE
-      document.getElementById("btn").disabled = false;
-    })
-    .catch(e => {
-      setStatus("Error sending data: " + e);
-      document.getElementById("btn").disabled = false;
-    });
-}
-
+    fetch(url)
+      .then(r => r.text())
+      .then(t => {
+        setStatus(t);
+        document.getElementById("btn").disabled = false;
+      })
+      .catch(e => {
+        setStatus("Error sending data: " + e);
+        document.getElementById("btn").disabled = false;
+      });
+  }
 </script>
 
 </body>
 </html>
-
-
-
-
-
-
-
-
-
